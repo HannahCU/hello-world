@@ -23,7 +23,7 @@ aperture = 0.5
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
 
-for l in range(1): #multiple rays
+for l in range(3): #multiple rays
     # x and y, pixel space coords
     xo = l*np.pi/2 #looping pixel coords hence ang and rad momentum
     yo = l*np.pi/2
@@ -77,8 +77,8 @@ for l in range(1): #multiple rays
     e = np.sqrt((s*(rprime0**2/dell0) + s*(thetaprime0**2) + dell0*(np.sin(theta0)**2)*phiprime0**2)) #energy
 
 
-    y0[0,4] = (rprime0*(sigma0/dell0))#/e      #from the 1st ODE, gives initial pr value
-    y0[0,5] = (thetaprime0*sigma0)#/e          #from 2nd ODE gives initial ptheta value
+    y0[0,4] = (rprime0*(sigma0/dell0))/e      #from the 1st ODE, gives initial pr value
+    y0[0,5] = (thetaprime0*sigma0)/e          #from 2nd ODE gives initial ptheta value
 
     #set first row in y vecror as initial conditions
     y[0,:] = y0
