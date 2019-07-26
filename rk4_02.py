@@ -1,23 +1,36 @@
-
-
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
 
+def search(vec,val,col,num): #this function returns the parameters in
+                       #the row of a specified value in a specified column
+    i =0
+    while i < num:
+        if np.abs(vec[i,col] - val) < 1e-10:
+            print("The parameters at the interval specified are,", vec[i,:]) #prints the values in that row
+            sec = vec[i,:] #gives list containing parameters in that row
+            return sec
+        else:
+            i += 1 #continue to loop until found
+    print("This value does not exist in this column.", vec[i,:]) #if not found print this, prints the values
+                                                                #found (should be last value of array as will loop to the end if not found)
+    return
+
+
 #stepsize for RK4
-h = 0.001
-tfinal = 1
+h = 0.01
+tfinal = 10
 N = int(tfinal/h)
-tarray = np.arange(N+1)
-t = np.vstack(tarray)
+# tarray = np.arange(N+1), no longer used, this just gave a label to the y array rows
+# t = np.vstack(tarray)
 
 
 
 #defining variables, hardcoded
 M = 1     # normalized for ease
 a = 1 #angmom in theta direction
-aperture = 0.5
+aperture = 1
 
 #figure
 fig = plt.figure()
@@ -25,8 +38,9 @@ ax = fig.add_subplot(111, projection="3d")
 
 for l in range(3): #multiple rays
     # x and y, pixel space coords
-    xo = l*np.pi/2 #looping pixel coords hence ang and rad momentum
-    yo = l*np.pi/2
+    xo = l*-np.pi/2 #looping pixel coords hence ang and rad momentum
+    yo = l*-np.pi/2
+
 
     #empty array for initial conditions
     y0 = np.zeros((1,6),float)
@@ -35,9 +49,10 @@ for l in range(3): #multiple rays
     y = np.zeros((N+1,6), float)
 
     #initial conditions spherical coords(at point of observer)
-    r0 = 6*M
-    theta0 = np.pi/2
-    phi0 = 0
+    t0 = 0
+    r0 = l*6*M
+    theta0 = l*np.pi/2
+    phi0 = l*np.pi/2
 
     #the variables used in the 5 ODEs
     #assigned to 2d vector y
@@ -53,7 +68,7 @@ for l in range(3): #multiple rays
 
     #assign initial conditions to 2d array y0
     # (r0,theta0,phi0) define observer location
-    y0[0,0] = t[0]
+    y0[0,0] = t0
     y0[0,1] = r0
     y0[0,2] = theta0
     y0[0,3] = phi0
@@ -98,8 +113,8 @@ for l in range(3): #multiple rays
         dell = r**2 - 2*M*r + a**2
         sigma = r**2 + a**2*(np.cos(theta)**2)
 
-        if r<2: #doesnt enter event horizon
-            return np.inf
+        if r < (M + np.sqrt(M**2 - a**2)): #taking event horizon as outer (+ instead of -)(kerr, reduces to schwarzs for a=0)
+            return np.inf    #prevents ray from entering event horizon
         return -(dell/sigma)*pr
 
     def thetaprime(r,theta,ptheta):
@@ -122,7 +137,7 @@ for l in range(3): #multiple rays
 
 
     for i in range(N):
-        #t[i+1] = t[i] + h missing this independent variable
+        t[i+1] = t[i] + h #simply iterate for time interval
 
         k1rprime = rprime(r[i], pr[i], theta[i])
         k1thetaprime = thetaprime(r[i], theta[i], ptheta[i])
@@ -155,26 +170,43 @@ for l in range(3): #multiple rays
         ptheta[i+1] = ptheta[i]+h/6*(k1pthetaprime + 2*k2pthetaprime + 2*k3pthetaprime + k4pthetaprime)
 
 
-    # convert back to cartesian
+
+    # convert arrays back to cartesian
     xc = np.sqrt(a**2+r**2)*np.cos(phi)*np.sin(theta)
     yc = np.sqrt(a**2+r**2)*np.sin(phi)*np.sin(theta)
     zc = np.sqrt(a**2+r**2)*np.cos(theta)
+    ax.scatter3D(xc,yc,zc, label=['Pixcords:', xo,yo], s = 0.5) #photon trajectory
 
-    ax.scatter3D(xc,yc,zc, label=[xo,yo], s = 0.5)
-    ax.set_xlim3d(-10,10)
-    ax.set_ylim3d(-10,10)
-    ax.set_zlim3d(-10,10)
+
+    #parameters at given time
+    value = [0,1,6]
+    #for v in value:
+    time, rad, thet, ph, rmom, amom  = search(y,0.01,0,N) #2nd variable needs to be varied corresponding to stepsize
+
+    #cartesian coords for point at a given time, parameters found from search func
+    px = np.sqrt(a**2+rad**2)*np.cos(ph)*np.sin(thet)
+    py = np.sqrt(a**2+rad**2)*np.sin(ph)*np.sin(thet)
+    pz = np.sqrt(a**2+rad**2)*np.cos(thet)
+
+    ax.scatter3D(px,py,pz, 'x', label=['Time:', time], s = 50) #point on trajectory at given time
+    ax.set_xlim3d(-100,100)
+    ax.set_ylim3d(-100,100)
+    ax.set_zlim3d(-100,100)
     ax.legend(loc='best')
 
-
-print("Initial conditions are", y[0,:])
-
-
-
+#prints some useful values for testing code
+print("Initial conditions are", y[1,:])
+#print("First few values of time intervals are", y[0:20,0], "and last few", y[N-4:N+1, 0])
 
 
 
-#Making black hole sphere
+
+
+
+
+
+
+#Making black hole sphere, monte carlo
 u = np.linspace(0, 2 * np.pi, 100)
 v = np.linspace(0, np.pi, 100)
 
