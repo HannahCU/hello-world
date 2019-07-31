@@ -1,0 +1,88 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+import os
+import glob
+import scipy.misc as smp
+
+
+model = Image.open("/Users/hannahriley/Desktop/angle/image_spin0.9angle70deg.png")
+
+
+def findpix(e):
+    name = "/Users/hannahriley/Desktop/angle/"
+    name += str(e)
+    im = Image.open(name, 'r')
+
+    pix_val = list(im.getdata()) #scans horziontally from left to right from top left corner
+    #pix_val_flat = [x for sets in pix_val for x in sets]
+    lightpix = [pix_val[i] for i in range(len(pix_val)) if pix_val[i] != (0,0,0)]
+    arearatio = len(lightpix)/len(pix_val) #ratio of light pixels to total pixels
+
+    return pix_val, lightpix, arearatio
+
+
+#funcion to add noise to image, this is now the observed data
+def noisy(noise_typ,image):
+   if noise_typ == "gauss":
+      row,col,ch= image.shape
+      mean = 0
+      var = 90 #large to be visible on image
+      sigma = var**0.5
+      gauss = np.random.normal(mean,sigma,(row,col,ch))
+      gauss = gauss.reshape(row,col,ch)
+      noisy = image + gauss
+      return noisy
+
+
+#apply the function to the opened image
+pix_val, lightpix, area = findpix("image_spin0.9angle70deg.png")
+#modelarray gives an array shape (200,200,3)
+#which is pixel dimensions 200x200 in this case. each pixel
+#has 3 coords denoting RGB values, e.g. (0,0,0) = black
+modelarray = np.asarray(model)
+
+#print(area)
+#print(imgarray[0,0]) #prints top left corner pixel value
+
+
+#define observed data
+obsarray = noisy("gauss", modelarray)
+obsim = smp.toimage(obsarray)
+# im.show()
+# obsim.show()
+
+
+"""now implement MCMC
+we want to loop over all pixels to get a large number
+of data points
+model is unnoisy image
+observed data is noisy image
+likelihood function can be a fitted gaussian distribution
+so we have model - observed / error
+we do this for each pixel
+e.g. say observed is black (=0) and model is black (=0)
+there is no difference """
+
+sig = 90**0.5
+#define likelihood function
+def lnlike(mod, obs, sig):
+    #fy = np.empty_like(mod)
+    inv_sigma2 = 1.0/(sig**2) #from noisy function, sigma is sqrt(var)
+    # model = mod
+    # y = obs
+    new = obs-mod
+    #for row in newar:
+    #    for cell in row:
+    #        for i in fy:
+    fy = (-0.5*(np.sum((new)**2*inv_sigma2 - np.log(inv_sigma2))))
+
+    return fy
+
+fy = np.empty_like(modelarray)
+#nested to loop through array top left to bottom right
+for rowm,rowy in zip(modelarray,obsarray):
+    for cellm, celly in zip(rowm,rowy):
+        fy.fill(lnlike(cellm, celly,sig))
+
+print(fy[0,0])
