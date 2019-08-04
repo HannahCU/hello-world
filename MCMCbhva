@@ -35,7 +35,7 @@ def noisy(noise_typ,image):
    if noise_typ == "gauss":
       row,col,ch= image.shape
       mean = 0
-      var = 90 #large to be visible on image
+      var = 0.1 #large to be visible on image
       sigma = var**0.5
       gauss = np.random.normal(mean,sigma,(row,col,ch))
       gauss = gauss.reshape(row,col,ch)
@@ -45,7 +45,7 @@ def noisy(noise_typ,image):
 
 
 #define sigma for likelihood
-sig = 90**0.5
+sig = 0.1**0.5
 #define likelihood function
 def lnlike(mod, obs, sig):
     #fy = np.empty_like(mod)
@@ -54,7 +54,7 @@ def lnlike(mod, obs, sig):
     newar = obs - mod
     for el in newar:
         fi = ((el)**2)*inv_sigma2
-        fy = (-0.5*((fi) - np.log(inv_sigma2)))
+        fy = (-0.5*(np.sum((fi)) - np.log(inv_sigma2)))
         lnlike = lnlike + fy
     return lnlike
 
