@@ -35,17 +35,19 @@ then need to loop over every image and do this for every image
 """
 
 
-def findpix(e):
-    name = "/Users/hannahriley/Desktop/raytracerpngs/"
-    name += str(e)
-    im = Image.open(name, 'r')
-
-    pix_val = list(im.getdata()) #scans horziontally from left to right from top left corner
-    #pix_val_flat = [x for sets in pix_val for x in sets]
-    lightpix = [pix_val[i] for i in range(len(pix_val)) if pix_val[i] != (0,0,0)]
-    arearatio = len(lightpix)/len(pix_val) #ratio of light pixels to total pixels
-
-    return im, pix_val, lightpix, arearatio
+# def findpix(e):
+#     name = "/Users/hannahriley/Desktop/raytracerpngs/"
+#     name += str(e)
+#     im = Image.open(name, 'r')
+#
+#     pix_val = list(im.getdata()) #scans horziontally from left to right from top left corner
+#     #pix_val_flat = [x for sets in pix_val for x in sets]
+#     lightpix = [pix_val[i] for i in range(len(pix_val)) if pix_val[i] != (0,0,0)]
+#     arearatio = len(lightpix)/len(pix_val) #ratio of light pixels to total pixels
+#
+#     return im, pix_val, lightpix, arearatio
+truespin = 0
+pixdensity = 6
 
 #define sigma for likelihood
 sigma = 0.2
@@ -61,13 +63,20 @@ def noisy(noise_typ,image,sigma):
       #print(gauss)
       return noisy
 
-
-
+#creates observed data from 0.9 spin image
+fornoise = raytracer(0.9, pixdensity)#Image.open("/Users/hannahriley/Desktop/raytracerpngs/spin0.9.png")
+fornoisearray = np.asarray(fornoise)
+binfor = (fornoisearray!=0).astype(int)
+obsarray = noisy("gauss",binfor,sigma)
+obsim = smp.toimage(obsarray) #need to check the error added to this.doesnt seem right
+#obsim.show()
+print(obsarray[0,0])
 
 #define likelihood function
-def lnlike(spin, obs, sigma):
-    #fy = np.empty_like(mod)
+def lnlike(spin, obs, pixdensity, sigma):
     #call raytracer function
+    array = raytracer(spin, pixdensity)
+    mod = (array!=0).astype(int)
     lnlike = 0
     inv_sigma2 = 1.0/(sigma**2) #from noisy function, sigma is sqrt(var)
     newar = obs - mod
@@ -78,42 +87,42 @@ def lnlike(spin, obs, sigma):
     return lnlike
 
 
+nll = lambda * args : -lnlike(*args)
+result = op.minimize(nll, [truespin], args=(obsarray, pixdensity, sigma)) #function, initial guesses, additional fixed arguments passed to objective (nll) function
+spinml = result["x"]
+
+
 def lnprior(spin):            #log prior
     if 0.0 <= spin <= 1.0:
         return 0.0
     return -np.inf
 
 #combine with lnlike from above to get full log probability function
-# def lnprob(spin, mod, obs, sigma):
-#     lp = lnprior(spin)
-#     if not np.isfinite(lp): #false if infinity or not a number
-#         return -np.inf
-#     return lp + lnlike(mod, obs, sigma)    #sum log prior and log liklihood func, i.e log of posterior prob up to constant
+def lnprob(spin, obs, pixdensity, sigma):
+    lp = lnprior(spin)
+    if not np.isfinite(lp): #false if infinity or not a number
+        return -np.inf
+    return lp + lnlike(spin, obs, pixdensity, sigma)    #sum log prior and log liklihood func, i.e log of posterior prob up to constant
 
 
 
-#creates observed data from 70deg image
-fornoise = Image.open("/Users/hannahriley/Desktop/raytracerpngs/spin0.9.png")
-fornoisearray = np.asarray(fornoise)
-binfor = (fornoisearray!=0).astype(int)
-obsarray = noisy("gauss",binfor,sigma)
-obsim = smp.toimage(obsarray) #need to check the error added to this.doesnt seem right
-#obsim.show()
 
 
-fy=[]
-#work out likelihood for each image against noisy model
-for filename in os.listdir("/Users/hannahriley/Desktop/raytracerpngs/"):
-    if filename.endswith('.png'):
-        model, pix_val, lightpix, area = findpix(filename)
 
-        #modelarray gives an array shape (200,200,3)
-        #which is pixel dimensions 200x200 in this case. each pixel
-        #has 3 coords denoting RGB values, e.g. (0,0,0) = black
-        modelarray = np.asarray(model)
+
+
+# #work out likelihood for each image against noisy model
+# for filename in os.listdir("/Users/hannahriley/Desktop/raytracerpngs/"):
+#     if filename.endswith('.png'):
+#         model, pix_val, lightpix, area = findpix(filename)
+#
+#         #modelarray gives an array shape (200,200,3)
+#         #which is pixel dimensions 200x200 in this case. each pixel
+#         #has 3 coords denoting RGB values, e.g. (0,0,0) = black
+#         modelarray = np.asarray(model)
 
         #assigned pixvals of (0,0,0) = 0, and anything above 0 as 1
-        binmod = (modelarray!=0).astype(int)
+        #binmod = (modelarray!=0).astype(int)
         #print(binmod[100,100]) #shows that the pixvals are different for some of the images
         #print(area)
 
@@ -123,10 +132,5 @@ for filename in os.listdir("/Users/hannahriley/Desktop/raytracerpngs/"):
         # im.show()
         # obsim.show()
 
-        fy.append(lnlike(binmod, obsarray, sigma))
+        #fy.append(lnlike(truespin, obsarray, sigma))
     #    fp.append(lnprob(binmod,obsarray,sigma))
-
-print("fy is:", fy)
-#print(np.argmin(np.abs(fy))) #note these are negative LOG likelihoods, so very small positive likelihood
-#print(np.exp(fy[9])) #of the order e-177
-#print("lnprob", lnprob)
