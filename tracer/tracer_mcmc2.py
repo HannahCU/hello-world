@@ -34,20 +34,9 @@ likelihood is fine otherwise though atm
 then need to loop over every image and do this for every image
 """
 
-
-# def findpix(e):
-#     name = "/Users/hannahriley/Desktop/raytracerpngs/"
-#     name += str(e)
-#     im = Image.open(name, 'r')
-#
-#     pix_val = list(im.getdata()) #scans horziontally from left to right from top left corner
-#     #pix_val_flat = [x for sets in pix_val for x in sets]
-#     lightpix = [pix_val[i] for i in range(len(pix_val)) if pix_val[i] != (0,0,0)]
-#     arearatio = len(lightpix)/len(pix_val) #ratio of light pixels to total pixels
-#
-#     return im, pix_val, lightpix, arearatio
-truespin = 0
+truespin = 0.9
 pixdensity = 6
+
 
 #define sigma for likelihood
 sigma = 0.2
@@ -55,10 +44,10 @@ sigma = 0.2
 #function to add noise to image, this is now the observed data
 def noisy(noise_typ,image,sigma):
    if noise_typ == "gauss":
-      row,col,ch= image.shape
+      row,col= image.shape
       mean = 0
-      gauss = np.random.normal(mean,sigma,(row,col,ch))
-      gauss = gauss.reshape(row,col,ch)
+      gauss = np.random.normal(mean,sigma,(row,col))
+      gauss = gauss.reshape(row,col)
       noisy =  -0.5 + image + gauss #add pos and neg error
       #print(gauss)
       return noisy
@@ -66,17 +55,34 @@ def noisy(noise_typ,image,sigma):
 #creates observed data from 0.9 spin image
 fornoise = raytracer(0.9, pixdensity)#Image.open("/Users/hannahriley/Desktop/raytracerpngs/spin0.9.png")
 fornoisearray = np.asarray(fornoise)
-binfor = (fornoisearray!=0).astype(int)
+noisearray = np.empty([6,6]) #needs fixing so these are automatically same shape as fornoisearray (10,10) but not (10,10,3)
+#counter=0
+#counter2=0
+for i in range(len(fornoisearray)): #reshapes from 10,10,3 to 10,10 (ie sums the 3)
+    #counter2+=1
+    for j in range(len(fornoisearray[i,:])):
+        #counter+=1
+        noisearray[i,j]=np.sum(fornoisearray[i,j])
+binfor = (noisearray!=0).astype(int)
 obsarray = noisy("gauss",binfor,sigma)
-obsim = smp.toimage(obsarray) #need to check the error added to this.doesnt seem right
+obsim = smp.toimage(obsarray)
 #obsim.show()
-print(obsarray[0,0])
+#obsarray.flatten()
 
 #define likelihood function
 def lnlike(spin, obs, pixdensity, sigma):
     #call raytracer function
+    #np.reshape(obs, [6,6])
     array = raytracer(spin, pixdensity)
-    mod = (array!=0).astype(int)
+    array2 = np.empty([6,6]) #needs fixing so these are automatically same shape as fornoisearray (10,10) but not (10,10,3)
+    #counter=0
+    #counter2=0
+    for i in range(len(array)): #reshapes from 10,10,3 to 10,10 (ie sums the 3)
+        #counter2+=1
+        for j in range(len(array[i,:])):
+            #counter+=1
+            array2[i,j]=np.sum(array[i,j])
+    mod = (array2!=0).astype(int)
     lnlike = 0
     inv_sigma2 = 1.0/(sigma**2) #from noisy function, sigma is sqrt(var)
     newar = obs - mod
@@ -86,14 +92,14 @@ def lnlike(spin, obs, pixdensity, sigma):
         lnlike = lnlike + fy
     return lnlike
 
-
-nll = lambda * args : -lnlike(*args)
-result = op.minimize(nll, [truespin], args=(obsarray, pixdensity, sigma)) #function, initial guesses, additional fixed arguments passed to objective (nll) function
-spinml = result["x"]
+#       MUST FIX!!!!
+# nll = lambda * args : -lnlike(*args)
+# result = op.minimize(nll, truespin, args=(obsarray, pixdensity, sigma)) #function, initial guesses, additional fixed arguments passed to objective (nll) function
+# spinml = result["x"]
 
 
 def lnprior(spin):            #log prior
-    if 0.0 <= spin <= 1.0:
+    if 0.0 <= spin <= 1.0:     #Uninformative - range
         return 0.0
     return -np.inf
 
@@ -104,33 +110,48 @@ def lnprob(spin, obs, pixdensity, sigma):
         return -np.inf
     return lp + lnlike(spin, obs, pixdensity, sigma)    #sum log prior and log liklihood func, i.e log of posterior prob up to constant
 
+post = lnprob(truespin, obsarray, pixdensity, sigma)
+print("posterior is", post)
+
+
+#truespin in pos should be result from max likelihood but for now we use truespin til fixed
+ndim, nwalkers = 1, 4        #no. dimensions, no. walkers
+pos = [truespin + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
+
+
+import emcee
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(obsarray, pixdensity, sigma))
+
+#run MCMC for 100 steps starting from the tiny ball defined above
+iteration = 100
+sampler.run_mcmc(pos, iteration)
+
+
+
+print("Sampler chain is", sampler.chain[0,0,:])
+fig, ax = plt.subplots(1,1, sharex = True) #conveniently packs fig ang subplots in 1, sharex = share x axes
+for i in [0]: #note must specify all numbers here as no range specified
+    ax[i].plot(sampler.chain[0,:,i], 'k-', lw=0.2)
+    ax[i].plot([0,99], [sampler.chain[0,:,i].mean(), sampler.chain[0,:,i].mean()], 'r-') #plots mean(true) in red
+    plt.suptitle("Random walker position for spin as a function of steps") #puts title at top
+
+
+
+samples = sampler.chain[:, 25:, :].reshape((-1,ndim))
+
+
+#corner plot
+import corner
+fig = corner.corner(samples, labels=["$spin$"],
+                    truths = [spintruth])
+#fig.savefig("triange.png")
 
 
 
 
-
-
-
-# #work out likelihood for each image against noisy model
-# for filename in os.listdir("/Users/hannahriley/Desktop/raytracerpngs/"):
-#     if filename.endswith('.png'):
-#         model, pix_val, lightpix, area = findpix(filename)
-#
-#         #modelarray gives an array shape (200,200,3)
-#         #which is pixel dimensions 200x200 in this case. each pixel
-#         #has 3 coords denoting RGB values, e.g. (0,0,0) = black
-#         modelarray = np.asarray(model)
-
-        #assigned pixvals of (0,0,0) = 0, and anything above 0 as 1
-        #binmod = (modelarray!=0).astype(int)
-        #print(binmod[100,100]) #shows that the pixvals are different for some of the images
-        #print(area)
-
-        #define observed data
-        #obsarray = noisy("gauss",binmod)
-        #obsim = smp.toimage(obsarray)
-        # im.show()
-        # obsim.show()
-
-        #fy.append(lnlike(truespin, obsarray, sigma))
-    #    fp.append(lnprob(binmod,obsarray,sigma))
+# plt.figure(4)
+# for spin in samples[np.random.randint(len(samples), size = 100)]: #if high isnt specified results are from 0 - low (ie len(samples))
+#     plt.plot(u+a*np.cos(tfine), v+b*np.sin(tfine), "b", lw=2, alpha = 0.3)
+# plt.plot(u+a_true*np.cos(tfine), v+b_true*np.sin(tfine), "r", lw = 2, alpha = 0.8)
+# plt.errorbar(x, y , yerr, fmt=".k", capsize = 1, lw=0.5)
+# plt.title("Results plotted over observed data points")
