@@ -1,0 +1,21 @@
+import numpy as np
+
+a = np.array([0,3,2])
+b = np.array([2,3,4])
+y = np.vstack((a,b))
+
+
+"""
+def search(vec,val,col,num): #this function prints the parameters in
+                       #the row of a specified value in a specified column
+    i = 0
+    while i < num:
+        if vec[i,col] == val:
+            print("The parameters at the interval specified are,", vec[i,:])
+            sec = vec[i,:]
+            return sec
+        else:
+            i += 1 #continue to loop until found
+    print("This value does not exist in this column.", vec[i,:]) #if not found print this
+    return
+"""
