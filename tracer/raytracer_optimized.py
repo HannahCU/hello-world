@@ -161,6 +161,9 @@ def raytracer(view, spin, pixdensity):
                 theta = 1e-8
             costh=np.cos(theta)
             cos2=costh*costh
+            sinth = np.sin(theta)
+            sin2 = sinth*sinth
+            pr2 = pr*pr
             phi = z[2]
             pr = z[3]
             ptheta = z[4]
@@ -170,14 +173,14 @@ def raytracer(view, spin, pixdensity):
             drdtao = -(dell/sigma)*pr
             if r<(rh+0.1): drdtao=-np.inf#doesnt enter event horizon
 
-
             dthetadtao = -(1/sigma)*ptheta
 
-            dphidtao = -(2*a*r + (sigma - 2*r)*L/np.sin(theta)**2 ) / (dell*sigma)
+            dphidtao = -(2*a*r + (sigma - 2*r)*L/sin2 ) / (dell*sigma)
 
-            dprdtao = -(((r-1)*(-K) + 2*r*(r**2 + a**2) - 2*a*L)/(dell*sigma) - (2*pr**2*(r-1)/sigma))
+            dprdtao = -(((r-1)*(-K) + 2*r*(r2 + a2) - 2*a*L)/(dell*sigma) - (2*pr2*(r-1)/sigma))
 
-            dpthetadtao = -(np.sin(theta)*np.cos(theta)*(L**2/np.sin(theta)**2 - a**2))/sigma
+            dpthetadtao = -(sinth*costh*(L**2/sin2 - a2))/sigma
+
             dzdtao = [drdtao, dthetadtao, dphidtao, dprdtao, dpthetadtao]
             return dzdtao
         # initial condition
