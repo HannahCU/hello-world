@@ -10,6 +10,9 @@ from mpl_toolkits import mplot3d
 from scipy.integrate import odeint
 from PIL import ImageFont
 from PIL import ImageDraw
+import random
+import warnings
+warnings.filterwarnings("ignore")
 
 #importing raytracer function
 from raytracer_optimized import raytracer
@@ -34,61 +37,63 @@ likelihood is fine otherwise though atm
 then need to loop over every image and do this for every image
 """
 
-truespin = 0.9
-pixdensity = 6
 
 
-#define sigma for likelihood
-sigma = 0.2
+
+truespin = 0.7
+pixdensity = 5
+trueview = np.pi/4
+sigma = 0.01 #define sigma for likelihood
 #var = sigma**2
+
+
+
+
 #function to add noise to image, this is now the observed data
 def noisy(noise_typ,image,sigma):
    if noise_typ == "gauss":
-      row,col= image.shape
+      row= image.shape #for shape (10,10,3) need row,col,ch respectively to be defined
       mean = 0
-      gauss = np.random.normal(mean,sigma,(row,col))
-      gauss = gauss.reshape(row,col)
-      noisy =  -0.5 + image + gauss #add pos and neg error
+      gauss = np.random.normal(mean,sigma,(row))
+      gauss = gauss.reshape(row)
+      noisy = image + gauss #add pos and neg error
       #print(gauss)
-      return noisy
+      return noisy, gauss
+
 
 #creates observed data from 0.9 spin image
-fornoise = raytracer(0.9, pixdensity)#Image.open("/Users/hannahriley/Desktop/raytracerpngs/spin0.9.png")
-fornoisearray = np.asarray(fornoise)
-noisearray = np.empty([6,6]) #needs fixing so these are automatically same shape as fornoisearray (10,10) but not (10,10,3)
+fornoise = raytracer(trueview, truespin, pixdensity)    #returns binary flat array of image(model) #Image.open("/Users/hannahriley/Desktop/raytracerpngs/spin0.9.png")
+print(fornoise)
+#fornoisearray = np.asarray(fornoise) #this isnt needed for raytracer func call as already in array form
+#noisearray = np.empty([pixdensity**2]) #for 2D change back to [pixdensity,pixdensity]
 #counter=0
 #counter2=0
-for i in range(len(fornoisearray)): #reshapes from 10,10,3 to 10,10 (ie sums the 3)
+#for i in range(len(fornoise)): #reshapes from 10,10,3 to 10,10 (ie sums the 3)
     #counter2+=1
-    for j in range(len(fornoisearray[i,:])):
+    #for j in range(len(fornoisearray[i,:])):
         #counter+=1
-        noisearray[i,j]=np.sum(fornoisearray[i,j])
-binfor = (noisearray!=0).astype(int)
-obsarray = noisy("gauss",binfor,sigma)
-obsim = smp.toimage(obsarray)
+    #noisearray[i]=np.sum(fornoise[i]) #to return to 2d would need index [i,j]
+#binfor = (noisearray!=0).astype(int) #already done in raytracer function
+obsarray = noisy("gauss",fornoise,sigma) #was binfor originally
+print(obsarray)
+#obsarr_im = np.reshape(obsarray, [pixdensity,pixdensity])
+#obsim = smp.toimage(obsarr_im)
 #obsim.show()
 #obsarray.flatten()
 
 #define likelihood function
-def lnlike(spin, obs, pixdensity, sigma):
+def lnlike(theta, obs, pixdensity, gauss):
     #call raytracer function
     #np.reshape(obs, [6,6])
-    array = raytracer(spin, pixdensity)
-    array2 = np.empty([6,6]) #needs fixing so these are automatically same shape as fornoisearray (10,10) but not (10,10,3)
-    #counter=0
-    #counter2=0
-    for i in range(len(array)): #reshapes from 10,10,3 to 10,10 (ie sums the 3)
-        #counter2+=1
-        for j in range(len(array[i,:])):
-            #counter+=1
-            array2[i,j]=np.sum(array[i,j])
-    mod = (array2!=0).astype(int)
+    view, spin = theta
+    model = raytracer(view, spin, pixdensity)
+
     lnlike = 0
-    inv_sigma2 = 1.0/(sigma**2) #from noisy function, sigma is sqrt(var)
-    newar = obs - mod
-    for el in newar:
-        fi = (el)**2*inv_sigma2
-        fy = (-0.5*(np.sum((fi) - np.log(inv_sigma2))))
+    inv_sigma2 = 1.0/(gauss**2) #from noisy function, sigma is sqrt(var)
+    newar = obs - model
+    for i in np.arange(0,len(newar)):
+        fi = (newar[i])**2*inv_sigma2[i]
+        fy = (-0.5*(fi))
         lnlike = lnlike + fy
     return lnlike
 
@@ -97,40 +102,55 @@ def lnlike(spin, obs, pixdensity, sigma):
 # result = op.minimize(nll, truespin, args=(obsarray, pixdensity, sigma)) #function, initial guesses, additional fixed arguments passed to objective (nll) function
 # spinml = result["x"]
 
-
-def lnprior(spin):            #log prior
-    if 0.0 <= spin <= 1.0:     #Uninformative - range
+def lnprior(theta):            #log prior
+    view, spin = theta
+    if 0 < view < np.pi/2 - 0.1 and 0.0 < spin < 0.999:
         return 0.0
     return -np.inf
 
 #combine with lnlike from above to get full log probability function
-def lnprob(spin, obs, pixdensity, sigma):
-    lp = lnprior(spin)
+def lnprob(theta, obs, pixdensity, sigma):
+    lp = lnprior(theta)
     if not np.isfinite(lp): #false if infinity or not a number
         return -np.inf
-    return lp + lnlike(spin, obs, pixdensity, sigma)    #sum log prior and log liklihood func, i.e log of posterior prob up to constant
+    lpr = lp + lnlike(theta, obs, pixdensity, sigma)
+    print(theta, lpr)
+    return lpr    #sum log prior and log liklihood func, i.e log of posterior prob up to constant
 
-post = lnprob(truespin, obsarray, pixdensity, sigma)
-print("posterior is", post)
+#post = lnprob(truespin, obsarray, pixdensity, sigma)
+#print("posterior is", post)
 
 
 #truespin in pos should be result from max likelihood but for now we use truespin til fixed
-ndim, nwalkers = 1, 4        #no. dimensions, no. walkers
-pos = [truespin + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
+ndim, nwalkers = 2, 4      #no. dimensions, no. walkers
+pos =[(random.uniform(0,np.pi/2-0.1),random.uniform(0,0.999)) for i in range(nwalkers)]#[truespin + 1e-4*np.random.randn(ndim) for i in range(nwalkers)]
+print("pos is", pos)
 
 
 import emcee
 sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(obsarray, pixdensity, sigma))
 
 #run MCMC for 100 steps starting from the tiny ball defined above
-iteration = 100
+iteration = 50
 sampler.run_mcmc(pos, iteration)
 
 
+#save doc
+f = open("chain.dat", "w")
+f.close()
+for result in sampler.sample(pos, iterations=iteration, storechain=False):
+    position = result[0]
+    f = open("chain.dat", "a")
+    for k in range(position.shape[0]):
+        f.write("{0:4d} {1:s}\n".format(k, " ".join(position[k])))
+f.close()
+
+data = np.loadtxt("chain.dat")
+print(data)
 
 print("Sampler chain is", sampler.chain[0,0,:])
 fig, ax = plt.subplots(1,1, sharex = True) #conveniently packs fig ang subplots in 1, sharex = share x axes
-for i in [0]: #note must specify all numbers here as no range specified
+for i in [0,1]: #note must specify all numbers here as no range specified
     ax[i].plot(sampler.chain[0,:,i], 'k-', lw=0.2)
     ax[i].plot([0,99], [sampler.chain[0,:,i].mean(), sampler.chain[0,:,i].mean()], 'r-') #plots mean(true) in red
     plt.suptitle("Random walker position for spin as a function of steps") #puts title at top
@@ -138,6 +158,7 @@ for i in [0]: #note must specify all numbers here as no range specified
 
 
 samples = sampler.chain[:, 25:, :].reshape((-1,ndim))
+
 
 
 #corner plot
