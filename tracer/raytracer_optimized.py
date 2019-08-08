@@ -163,9 +163,9 @@ def raytracer(view, spin, pixdensity):
             cos2=costh*costh
             sinth = np.sin(theta)
             sin2 = sinth*sinth
-            pr2 = pr*pr
             phi = z[2]
             pr = z[3]
+            pr2 = pr*pr
             ptheta = z[4]
             sigma = r2 + a2*cos2 #solver has been optimized by removing prime functions for expressions
             dell = r2 - 2*M*r + a2
